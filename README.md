@@ -2,8 +2,6 @@
 
 Implementacion de la practica de Sistemas Operativos para el sistema de ejecucion por lotes.
 
-El proyecto se esta desarrollando por partes para mantener entregas pequenas y verificables en el repositorio.
-
 ## Alcance de la entrega final
 
 Segun el enunciado de la segunda y tercera entrega, el sistema debe implementar cuatro servicios que se comunican con mensajes JSON terminados en salto de linea (`\n`) mediante tuberias nombradas:
