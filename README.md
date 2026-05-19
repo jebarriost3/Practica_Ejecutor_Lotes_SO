@@ -28,13 +28,16 @@ make
 ```
 
 ## Verificacion inicial
+En Windows 11 con MSYS2 UCRT64:
 
 ```bash
+mingw32-make clean
 mingw32-make test CC=gcc
 ```
 
-o en Linux:
+En Linux:
 
 ```bash
-make test
+make clean
+make test CC=gcc
 ```
