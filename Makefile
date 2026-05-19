@@ -6,16 +6,16 @@ CFLAGS ?= -std=c11 -Wall -Wextra -pedantic -Iinclude
 ifdef MSYSTEM
 EXEEXT := .exe
 RM := C:/msys64/usr/bin/rm.exe
-CLEAN_CMD = $(RM) -f build_protocol.o build_gesfich_store.o liblotes.a test_protocol$(EXEEXT) test_gesfich_store$(EXEEXT)
+CLEAN_CMD = $(RM) -f build_protocol.o build_gesfich_store.o build_gesfich_service.o liblotes.a test_protocol$(EXEEXT) test_gesfich_store$(EXEEXT) test_gesfich_service$(EXEEXT)
 else ifeq ($(OS),Windows_NT)
 EXEEXT := .exe
-CLEAN_CMD = del /Q build_protocol.o build_gesfich_store.o liblotes.a test_protocol$(EXEEXT) test_gesfich_store$(EXEEXT) 2>NUL
+CLEAN_CMD = del /Q build_protocol.o build_gesfich_store.o build_gesfich_service.o liblotes.a test_protocol$(EXEEXT) test_gesfich_store$(EXEEXT) test_gesfich_service$(EXEEXT) 2>NUL
 else
 EXEEXT :=
-CLEAN_CMD = rm -f build_protocol.o build_gesfich_store.o liblotes.a test_protocol$(EXEEXT) test_gesfich_store$(EXEEXT)
+CLEAN_CMD = rm -f build_protocol.o build_gesfich_store.o build_gesfich_service.o liblotes.a test_protocol$(EXEEXT) test_gesfich_store$(EXEEXT) test_gesfich_service$(EXEEXT)
 endif
 
-COMMON_OBJS := build_protocol.o build_gesfich_store.o
+COMMON_OBJS := build_protocol.o build_gesfich_store.o build_gesfich_service.o
 
 .PHONY: all clean test
 
@@ -27,6 +27,9 @@ build_protocol.o: src/common/protocol.c include/protocol.h
 build_gesfich_store.o: src/gesfich/store.c include/gesfich_store.h include/protocol.h
 	$(CC) $(CFLAGS) -c src/gesfich/store.c -o $@
 
+build_gesfich_service.o: src/gesfich/service.c include/gesfich_service.h include/gesfich_store.h include/protocol.h
+	$(CC) $(CFLAGS) -c src/gesfich/service.c -o $@
+
 liblotes.a: $(COMMON_OBJS)
 	$(AR) rcs $@ $(COMMON_OBJS)
 
@@ -36,9 +39,13 @@ test_protocol$(EXEEXT): tests/test_protocol.c liblotes.a
 test_gesfich_store$(EXEEXT): tests/test_gesfich_store.c liblotes.a
 	$(CC) $(CFLAGS) tests/test_gesfich_store.c liblotes.a -o $@
 
-test: test_protocol$(EXEEXT) test_gesfich_store$(EXEEXT)
+test_gesfich_service$(EXEEXT): tests/test_gesfich_service.c liblotes.a
+	$(CC) $(CFLAGS) tests/test_gesfich_service.c liblotes.a -o $@
+
+test: test_protocol$(EXEEXT) test_gesfich_store$(EXEEXT) test_gesfich_service$(EXEEXT)
 	./test_protocol$(EXEEXT)
 	./test_gesfich_store$(EXEEXT)
+	./test_gesfich_service$(EXEEXT)
 
 clean:
 	-$(CLEAN_CMD)
