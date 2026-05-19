@@ -3,4 +3,5 @@ build/
 *.a
 *.exe
 test_protocol
+test_gesfich_store
 NUL
