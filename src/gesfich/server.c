@@ -80,8 +80,14 @@ static int write_all(gesfich_pipe_t *pipe, const char *text, size_t len)
     return WriteFile(pipe->output, text, (DWORD)len, &count, NULL) && count == len;
 }
 
+static void flush_pipe(gesfich_pipe_t *pipe)
+{
+    FlushFileBuffers(pipe->output);
+}
+
 static void close_pipe(gesfich_pipe_t *pipe)
 {
+    flush_pipe(pipe);
     DisconnectNamedPipe(pipe->input);
     CloseHandle(pipe->input);
     if (pipe->split) {
@@ -100,7 +106,7 @@ static int open_pipe(gesfich_pipe_t *pipe, const gesfich_server_config_t *config
         return 0;
     }
 
-    pipe->input = open(config->request_pipe, O_RDONLY);
+    pipe->input = open(config->request_pipe, O_RDWR);
     if (pipe->input < 0) {
         return 0;
     }
@@ -120,6 +126,11 @@ static int read_char(gesfich_pipe_t *pipe, char *ch)
 static int write_all(gesfich_pipe_t *pipe, const char *text, size_t len)
 {
     return write(pipe->output, text, len) == (ssize_t)len;
+}
+
+static void flush_pipe(gesfich_pipe_t *pipe)
+{
+    (void)pipe;
 }
 
 static void close_pipe(gesfich_pipe_t *pipe)
@@ -162,7 +173,11 @@ static int read_message(gesfich_pipe_t *pipe, char *buffer, size_t size)
 
 static int write_message(gesfich_pipe_t *pipe, const char *message)
 {
-    return write_all(pipe, message, strlen(message)) && write_all(pipe, "\n", 1);
+    if (!write_all(pipe, message, strlen(message)) || !write_all(pipe, "\n", 1)) {
+        return 0;
+    }
+    flush_pipe(pipe);
+    return 1;
 }
 
 int gesfich_server_run(const gesfich_server_config_t *config)
