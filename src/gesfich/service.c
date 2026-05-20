@@ -171,6 +171,28 @@ static int write_ok(char *response, size_t response_size)
     return write_response(response, response_size, "{\"estado\":\"ok\"}");
 }
 
+static const char *service_state_name(gesfich_service_state_t state)
+{
+    switch (state) {
+    case GESFICH_SERVICE_SUSPENDIDO:
+        return "suspendido";
+    case GESFICH_SERVICE_TERMINADO:
+        return "terminado";
+    case GESFICH_SERVICE_CORRIENDO:
+    default:
+        return "corriendo";
+    }
+}
+
+static int write_service_state(char *response, size_t response_size,
+                               gesfich_service_state_t state)
+{
+    return write_response(response, response_size,
+                          "{\"estado\":\"ok\",\"servicio\":\"gesfich\","
+                          "\"estado-servicio\":\"%s\"}",
+                          service_state_name(state));
+}
+
 static const char *store_error_message(gesfich_result_t result)
 {
     switch (result) {
@@ -338,4 +360,68 @@ int gesfich_handle_json(const char *aralmac, const char *request, char *response
     }
 
     return write_error(response, response_size, "operacion desconocida");
+}
+
+void gesfich_service_init(gesfich_service_t *service)
+{
+    if (service != NULL) {
+        service->state = GESFICH_SERVICE_CORRIENDO;
+    }
+}
+
+gesfich_service_state_t gesfich_service_state(const gesfich_service_t *service)
+{
+    if (service == NULL) {
+        return GESFICH_SERVICE_TERMINADO;
+    }
+    return service->state;
+}
+
+int gesfich_service_handle_json(gesfich_service_t *service, const char *aralmac,
+                                const char *request, char *response,
+                                size_t response_size)
+{
+    char servicio[FIELD_SIZE];
+    char operacion[FIELD_SIZE];
+
+    if (service == NULL) {
+        return write_error(response, response_size, "servicio no inicializado");
+    }
+
+    if (response == NULL || response_size == 0) {
+        return 0;
+    }
+    response[0] = '\0';
+
+    if (request == NULL || !protocol_message_size_ok(strlen(request))) {
+        return write_error(response, response_size, "operacion desconocida");
+    }
+
+    if (!json_get_string(request, "servicio", servicio, sizeof(servicio)) ||
+        strcmp(servicio, "gesfich") != 0 ||
+        !json_get_string(request, "operacion", operacion, sizeof(operacion))) {
+        return write_error(response, response_size, "operacion desconocida");
+    }
+
+    if (strcmp(operacion, "Suspender") == 0) {
+        service->state = GESFICH_SERVICE_SUSPENDIDO;
+        return write_service_state(response, response_size, service->state);
+    }
+    if (strcmp(operacion, "Reasumir") == 0) {
+        service->state = GESFICH_SERVICE_CORRIENDO;
+        return write_service_state(response, response_size, service->state);
+    }
+    if (strcmp(operacion, "Terminar") == 0) {
+        service->state = GESFICH_SERVICE_TERMINADO;
+        return write_service_state(response, response_size, service->state);
+    }
+
+    if (service->state == GESFICH_SERVICE_SUSPENDIDO) {
+        return write_error(response, response_size, "servicio suspendido");
+    }
+    if (service->state == GESFICH_SERVICE_TERMINADO) {
+        return write_error(response, response_size, "servicio terminado");
+    }
+
+    return gesfich_handle_json(aralmac, request, response, response_size);
 }

@@ -37,9 +37,20 @@ static void assert_response(const char *request, const char *expected)
     assert(strcmp(response, expected) == 0);
 }
 
+static void assert_stateful_response(gesfich_service_t *service, const char *request,
+                                     const char *expected)
+{
+    char response[4096];
+
+    assert(gesfich_service_handle_json(service, "tmp_service_aralmac", request, response,
+                                       sizeof(response)));
+    assert(strcmp(response, expected) == 0);
+}
+
 int main(void)
 {
     char response[4096];
+    gesfich_service_t service;
 
     cleanup();
 
@@ -83,6 +94,34 @@ int main(void)
                     "{\"estado\":\"error\",\"mensaje\":\"operacion desconocida\"}");
 
     cleanup();
+    gesfich_service_init(&service);
+    assert(gesfich_service_state(&service) == GESFICH_SERVICE_CORRIENDO);
+
+    assert_stateful_response(&service, "{\"servicio\":\"gesfich\",\"operacion\":\"Crear\"}",
+                             "{\"estado\":\"ok\",\"id-fichero\":\"f-0001\"}");
+    assert_stateful_response(&service, "{\"servicio\":\"gesfich\",\"operacion\":\"Suspender\"}",
+                             "{\"estado\":\"ok\",\"servicio\":\"gesfich\","
+                             "\"estado-servicio\":\"suspendido\"}");
+    assert(gesfich_service_state(&service) == GESFICH_SERVICE_SUSPENDIDO);
+
+    assert_stateful_response(&service,
+                             "{\"servicio\":\"gesfich\",\"operacion\":\"Leer\","
+                             "\"id-fichero\":\"f-0001\"}",
+                             "{\"estado\":\"error\",\"mensaje\":\"servicio suspendido\"}");
+    assert_stateful_response(&service, "{\"servicio\":\"gesfich\",\"operacion\":\"Reasumir\"}",
+                             "{\"estado\":\"ok\",\"servicio\":\"gesfich\","
+                             "\"estado-servicio\":\"corriendo\"}");
+    assert(gesfich_service_state(&service) == GESFICH_SERVICE_CORRIENDO);
+
+    assert_stateful_response(&service,
+                             "{\"servicio\":\"gesfich\",\"operacion\":\"Leer\","
+                             "\"id-fichero\":\"f-0001\"}",
+                             "{\"estado\":\"ok\",\"contenido\":\"\"}");
+    assert_stateful_response(&service, "{\"servicio\":\"gesfich\",\"operacion\":\"Terminar\"}",
+                             "{\"estado\":\"ok\",\"servicio\":\"gesfich\","
+                             "\"estado-servicio\":\"terminado\"}");
+    assert(gesfich_service_state(&service) == GESFICH_SERVICE_TERMINADO);
+
+    cleanup();
     return 0;
 }
-

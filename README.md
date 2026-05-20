@@ -41,3 +41,27 @@ En Linux:
 make clean
 make test CC=gcc
 ```
+
+## Ejecucion de gesfich
+
+`gesfich` es el primer servicio ejecutable. Recibe mensajes JSON terminados en
+salto de linea por una tuberia nombrada y responde por la misma tuberia en
+Windows, o por una tuberia de respuesta en Linux.
+
+En Windows 11 con MSYS2 UCRT64:
+
+```bash
+./gesfich.exe -f '\\.\pipe\gesfich_req' -x aralmac
+```
+
+En Linux:
+
+```bash
+./gesfich -f /tmp/gesfich_req -b /tmp/gesfich_res -x aralmac
+```
+
+Ejemplo de mensaje:
+
+```json
+{"servicio":"gesfich","operacion":"Crear"}
+```
