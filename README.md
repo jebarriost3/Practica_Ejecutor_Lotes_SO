@@ -109,3 +109,59 @@ Ejemplo de respuesta:
 {"estado":"ok","ficheros":["f-0001"]}
 {"estado":"ok"}
 ```
+
+## Ejecucion de gesprog
+
+`gesprog` registra programas ejecutables y sus metadatos en `aralmac`.
+
+En Windows 11 con MSYS2 UCRT64:
+
+```bash
+mingw32-make clean
+mingw32-make CC=gcc
+./gesprog.exe -p '\\.\pipe\gesprog_req' -x aralmac
+```
+
+En otra terminal PowerShell:
+
+```powershell
+$pipe = New-Object System.IO.Pipes.NamedPipeClientStream(".", "gesprog_req", [System.IO.Pipes.PipeDirection]::InOut)
+$pipe.Connect(5000)
+$writer = New-Object System.IO.StreamWriter($pipe)
+$reader = New-Object System.IO.StreamReader($pipe)
+$writer.AutoFlush = $true
+
+$writer.WriteLine('{"servicio":"gesprog","operacion":"Guardar","ejecutable":"README.md","args":["--modo","demo"],"env":["APP_MODE=batch"]}')
+$reader.ReadLine()
+
+$writer.WriteLine('{"servicio":"gesprog","operacion":"Leer"}')
+$reader.ReadLine()
+
+$writer.WriteLine('{"servicio":"gesprog","operacion":"Terminar"}')
+$reader.ReadLine()
+
+$pipe.Dispose()
+```
+
+En Linux:
+
+```bash
+make clean
+make CC=gcc
+rm -f /tmp/gesprog_req /tmp/gesprog_res
+./gesprog -p /tmp/gesprog_req -c /tmp/gesprog_res -x aralmac
+```
+
+En una segunda terminal:
+
+```bash
+cat /tmp/gesprog_res
+```
+
+En una tercera terminal:
+
+```bash
+printf '{"servicio":"gesprog","operacion":"Guardar","ejecutable":"README.md","args":["--modo","demo"],"env":["APP_MODE=batch"]}\n' > /tmp/gesprog_req
+printf '{"servicio":"gesprog","operacion":"Leer"}\n' > /tmp/gesprog_req
+printf '{"servicio":"gesprog","operacion":"Terminar"}\n' > /tmp/gesprog_req
+```
