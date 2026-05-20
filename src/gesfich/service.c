@@ -171,28 +171,6 @@ static int write_ok(char *response, size_t response_size)
     return write_response(response, response_size, "{\"estado\":\"ok\"}");
 }
 
-static const char *service_state_name(gesfich_service_state_t state)
-{
-    switch (state) {
-    case GESFICH_SERVICE_SUSPENDIDO:
-        return "suspendido";
-    case GESFICH_SERVICE_TERMINADO:
-        return "terminado";
-    case GESFICH_SERVICE_CORRIENDO:
-    default:
-        return "corriendo";
-    }
-}
-
-static int write_service_state(char *response, size_t response_size,
-                               gesfich_service_state_t state)
-{
-    return write_response(response, response_size,
-                          "{\"estado\":\"ok\",\"servicio\":\"gesfich\","
-                          "\"estado-servicio\":\"%s\"}",
-                          service_state_name(state));
-}
-
 static const char *store_error_message(gesfich_result_t result)
 {
     switch (result) {
@@ -312,7 +290,7 @@ static int handle_borrar(const char *aralmac, const char *request, char *respons
     if (result != GESFICH_OK) {
         return write_error(response, response_size,
                            result == GESFICH_NOT_FOUND ? "fichero no encontrado"
-                                                       : "no se pudo actualizar el fichero");
+                                                       : "fichero no encontrado");
     }
 
     return write_ok(response, response_size);
@@ -405,15 +383,15 @@ int gesfich_service_handle_json(gesfich_service_t *service, const char *aralmac,
 
     if (strcmp(operacion, "Suspender") == 0) {
         service->state = GESFICH_SERVICE_SUSPENDIDO;
-        return write_service_state(response, response_size, service->state);
+        return write_ok(response, response_size);
     }
     if (strcmp(operacion, "Reasumir") == 0) {
         service->state = GESFICH_SERVICE_CORRIENDO;
-        return write_service_state(response, response_size, service->state);
+        return write_ok(response, response_size);
     }
     if (strcmp(operacion, "Terminar") == 0) {
         service->state = GESFICH_SERVICE_TERMINADO;
-        return write_service_state(response, response_size, service->state);
+        return write_ok(response, response_size);
     }
 
     if (service->state == GESFICH_SERVICE_SUSPENDIDO) {

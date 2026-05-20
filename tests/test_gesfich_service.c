@@ -100,8 +100,7 @@ int main(void)
     assert_stateful_response(&service, "{\"servicio\":\"gesfich\",\"operacion\":\"Crear\"}",
                              "{\"estado\":\"ok\",\"id-fichero\":\"f-0001\"}");
     assert_stateful_response(&service, "{\"servicio\":\"gesfich\",\"operacion\":\"Suspender\"}",
-                             "{\"estado\":\"ok\",\"servicio\":\"gesfich\","
-                             "\"estado-servicio\":\"suspendido\"}");
+                             "{\"estado\":\"ok\"}");
     assert(gesfich_service_state(&service) == GESFICH_SERVICE_SUSPENDIDO);
 
     assert_stateful_response(&service,
@@ -109,8 +108,7 @@ int main(void)
                              "\"id-fichero\":\"f-0001\"}",
                              "{\"estado\":\"error\",\"mensaje\":\"servicio suspendido\"}");
     assert_stateful_response(&service, "{\"servicio\":\"gesfich\",\"operacion\":\"Reasumir\"}",
-                             "{\"estado\":\"ok\",\"servicio\":\"gesfich\","
-                             "\"estado-servicio\":\"corriendo\"}");
+                             "{\"estado\":\"ok\"}");
     assert(gesfich_service_state(&service) == GESFICH_SERVICE_CORRIENDO);
 
     assert_stateful_response(&service,
@@ -118,8 +116,7 @@ int main(void)
                              "\"id-fichero\":\"f-0001\"}",
                              "{\"estado\":\"ok\",\"contenido\":\"\"}");
     assert_stateful_response(&service, "{\"servicio\":\"gesfich\",\"operacion\":\"Terminar\"}",
-                             "{\"estado\":\"ok\",\"servicio\":\"gesfich\","
-                             "\"estado-servicio\":\"terminado\"}");
+                             "{\"estado\":\"ok\"}");
     assert(gesfich_service_state(&service) == GESFICH_SERVICE_TERMINADO);
 
     cleanup();
