@@ -1,3 +1,7 @@
+#ifndef _WIN32
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "ejecutor_service.h"
 #include "gesprog_store.h"
 
@@ -11,9 +15,21 @@
 #define RMDIR(path) _rmdir(path)
 #define WAIT_MS(ms) Sleep(ms)
 #else
+#include <time.h>
 #include <unistd.h>
 #define RMDIR(path) rmdir(path)
-#define WAIT_MS(ms) usleep((ms) * 1000)
+#define WAIT_MS(ms) wait_ms(ms)
+#endif
+
+#ifndef _WIN32
+static void wait_ms(int ms)
+{
+    struct timespec delay;
+
+    delay.tv_sec = ms / 1000;
+    delay.tv_nsec = (long)(ms % 1000) * 1000000L;
+    nanosleep(&delay, NULL);
+}
 #endif
 
 static void cleanup(void)

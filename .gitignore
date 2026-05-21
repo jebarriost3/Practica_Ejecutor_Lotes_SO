@@ -5,10 +5,12 @@ aralmac/
 *.exe
 /gesfich
 /gesprog
+/ejecutor
 test_protocol
 test_gesfich_store
 test_gesfich_service
 test_gesprog_store
 test_gesprog_service
 test_ejecutor_store
+test_ejecutor_service
 NUL
