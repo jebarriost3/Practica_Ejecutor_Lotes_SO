@@ -102,6 +102,21 @@ static int execution_file(char *buffer, size_t size, const char *aralmac,
     return build_path(buffer, size, aralmac, "ejecuciones", filename);
 }
 
+static int fichero_file(char *buffer, size_t size, const char *aralmac,
+                        const char *id_fichero)
+{
+    char filename[32];
+
+    if (!protocol_valid_id(id_fichero, ID_FICHERO)) {
+        return 0;
+    }
+    if (snprintf(filename, sizeof(filename), "%s.dat", id_fichero) >=
+        (int)sizeof(filename)) {
+        return 0;
+    }
+    return build_path(buffer, size, aralmac, "ficheros", filename);
+}
+
 static const char *error_message(ejecutor_result_t result)
 {
     if (result == EJECUTOR_NOT_FOUND) {
@@ -116,11 +131,11 @@ static const char *error_message(ejecutor_result_t result)
     return "operacion desconocida";
 }
 
-static int append_execution(char *response, size_t size, size_t *used,
-                            const ejecutor_execution_t *item)
+static int append_execution_fields(char *response, size_t size, size_t *used,
+                                   const ejecutor_execution_t *item)
 {
     int written = snprintf(response + *used, size - *used,
-                           "{\"id-ejecucion\":\"%s\",\"id-programa\":\"%s\","
+                           "\"id-ejecucion\":\"%s\",\"id-programa\":\"%s\","
                            "\"proceso-estado\":\"%s\"",
                            item->id_ejecucion, item->id_programa,
                            ejecutor_estado_texto(item->estado));
@@ -139,11 +154,23 @@ static int append_execution(char *response, size_t size, size_t *used,
         *used += (size_t)written;
     }
 
-    written = snprintf(response + *used, size - *used, "}");
-    if (written < 0 || (size_t)written >= size - *used) {
+    return 1;
+}
+
+static int append_execution(char *response, size_t size, size_t *used,
+                            const ejecutor_execution_t *item)
+{
+    if (!write_json(response + *used, size - *used, "{")) {
         return 0;
     }
-    *used += (size_t)written;
+    (*used)++;
+    if (!append_execution_fields(response, size, used, item)) {
+        return 0;
+    }
+    if (!write_json(response + *used, size - *used, "}")) {
+        return 0;
+    }
+    (*used)++;
     return 1;
 }
 
@@ -236,15 +263,33 @@ static void update_all_processes(ejecutor_service_t *service, const char *aralma
 }
 
 static int launch_program(ejecutor_service_t *service, const char *aralmac,
-                          const char *id_ejecucion, const gesprog_program_t *programa)
+                          const char *id_ejecucion, const gesprog_program_t *programa,
+                          const char *stdin_id, const char *stdout_id,
+                          const char *stderr_id)
 {
     ejecutor_process_t *slot = alloc_process(service);
+    char in_path[512];
     char out_path[512];
     char err_path[512];
 
-    if (slot == NULL ||
-        !execution_file(out_path, sizeof(out_path), aralmac, id_ejecucion, ".out") ||
-        !execution_file(err_path, sizeof(err_path), aralmac, id_ejecucion, ".err")) {
+    if (slot == NULL) {
+        return 0;
+    }
+    if (stdin_id != NULL && !fichero_file(in_path, sizeof(in_path), aralmac, stdin_id)) {
+        return 0;
+    }
+    if (stdout_id != NULL) {
+        if (!fichero_file(out_path, sizeof(out_path), aralmac, stdout_id)) {
+            return 0;
+        }
+    } else if (!execution_file(out_path, sizeof(out_path), aralmac, id_ejecucion, ".out")) {
+        return 0;
+    }
+    if (stderr_id != NULL) {
+        if (!fichero_file(err_path, sizeof(err_path), aralmac, stderr_id)) {
+            return 0;
+        }
+    } else if (!execution_file(err_path, sizeof(err_path), aralmac, id_ejecucion, ".err")) {
         return 0;
     }
 
@@ -264,7 +309,8 @@ static int launch_program(ejecutor_service_t *service, const char *aralmac,
         sa.lpSecurityDescriptor = NULL;
         sa.bInheritHandle = TRUE;
 
-        input_file = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ, &sa, OPEN_EXISTING,
+        input_file = CreateFileA(stdin_id == NULL ? "NUL" : in_path, GENERIC_READ,
+                                 FILE_SHARE_READ, &sa, OPEN_EXISTING,
                                  FILE_ATTRIBUTE_NORMAL, NULL);
         out_file = CreateFileA(out_path, GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS,
                                FILE_ATTRIBUTE_NORMAL, NULL);
@@ -334,12 +380,13 @@ static int launch_program(ejecutor_service_t *service, const char *aralmac,
             return 0;
         }
         if (pid == 0) {
+            FILE *in = stdin_id == NULL ? stdin : freopen(in_path, "rb", stdin);
             FILE *out = freopen(out_path, "wb", stdout);
             FILE *err = freopen(err_path, "wb", stderr);
             char **argv = calloc(programa->args_count + 3, sizeof(char *));
             size_t i;
 
-            if (out == NULL || err == NULL || argv == NULL) {
+            if (in == NULL || out == NULL || err == NULL || argv == NULL) {
                 _exit(127);
             }
             argv[0] = "sh";
@@ -363,6 +410,12 @@ static int handle_ejecutar_real(ejecutor_service_t *service, const char *aralmac
                                 const char *request, char *response, size_t size)
 {
     char id_programa[FIELD_SIZE];
+    char stdin_id[FIELD_SIZE];
+    char stdout_id[FIELD_SIZE];
+    char stderr_id[FIELD_SIZE];
+    const char *stdin_value = NULL;
+    const char *stdout_value = NULL;
+    const char *stderr_value = NULL;
     char id_ejecucion[EJECUTOR_ID_SIZE];
     gesprog_program_t programa;
     ejecutor_result_t result;
@@ -373,13 +426,35 @@ static int handle_ejecutar_real(ejecutor_service_t *service, const char *aralmac
     if (gesprog_leer(aralmac, id_programa, &programa) != GESPROG_OK) {
         return write_error(response, size, "programa no encontrado");
     }
+    if (json_get_string(request, "stdin", stdin_id, sizeof(stdin_id))) {
+        if (!protocol_valid_id(stdin_id, ID_FICHERO)) {
+            gesprog_liberar_programa(&programa);
+            return write_error(response, size, "identificador invalido");
+        }
+        stdin_value = stdin_id;
+    }
+    if (json_get_string(request, "stdout", stdout_id, sizeof(stdout_id))) {
+        if (!protocol_valid_id(stdout_id, ID_FICHERO)) {
+            gesprog_liberar_programa(&programa);
+            return write_error(response, size, "identificador invalido");
+        }
+        stdout_value = stdout_id;
+    }
+    if (json_get_string(request, "stderr", stderr_id, sizeof(stderr_id))) {
+        if (!protocol_valid_id(stderr_id, ID_FICHERO)) {
+            gesprog_liberar_programa(&programa);
+            return write_error(response, size, "identificador invalido");
+        }
+        stderr_value = stderr_id;
+    }
 
     result = ejecutor_registrar(aralmac, id_programa, id_ejecucion);
     if (result != EJECUTOR_OK) {
         gesprog_liberar_programa(&programa);
         return write_error(response, size, error_message(result));
     }
-    if (!launch_program(service, aralmac, id_ejecucion, &programa)) {
+    if (!launch_program(service, aralmac, id_ejecucion, &programa, stdin_value,
+                        stdout_value, stderr_value)) {
         ejecutor_marcar_terminada(aralmac, id_ejecucion, 127);
         gesprog_liberar_programa(&programa);
         return write_error(response, size, "no se pudo lanzar el programa");
@@ -434,8 +509,8 @@ static int handle_estado(const char *aralmac, const char *request, char *respons
         if (result != EJECUTOR_OK) {
             return write_error(response, size, error_message(result));
         }
-        used = (size_t)snprintf(response, size, "{\"estado\":\"ok\",\"ejecucion\":");
-        return used < size && append_execution(response, size, &used, &item) &&
+        used = (size_t)snprintf(response, size, "{\"estado\":\"ok\",");
+        return used < size && append_execution_fields(response, size, &used, &item) &&
                write_json(response + used, size - used, "}");
     }
 
@@ -444,7 +519,7 @@ static int handle_estado(const char *aralmac, const char *request, char *respons
         return write_error(response, size, "error al listar ejecuciones");
     }
 
-    used = (size_t)snprintf(response, size, "{\"estado\":\"ok\",\"ejecuciones\":[");
+    used = (size_t)snprintf(response, size, "{\"estado\":\"ok\",\"procesos\":[");
     if (used >= size) {
         ejecutor_liberar_lista(items);
         return 0;

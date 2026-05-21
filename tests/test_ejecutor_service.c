@@ -12,11 +12,14 @@
 #ifdef _WIN32
 #include <direct.h>
 #include <windows.h>
+#define MKDIR(path) _mkdir(path)
 #define RMDIR(path) _rmdir(path)
 #define WAIT_MS(ms) Sleep(ms)
 #else
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#define MKDIR(path) mkdir(path, 0777)
 #define RMDIR(path) rmdir(path)
 #define WAIT_MS(ms) wait_ms(ms)
 #endif
@@ -40,11 +43,15 @@ static void cleanup(void)
     remove("tmp_service_ejecutor_aralmac/ejecuciones/e-0001.err");
     remove("tmp_service_ejecutor_aralmac/ejecuciones/e-0002.out");
     remove("tmp_service_ejecutor_aralmac/ejecuciones/e-0002.err");
+    remove("tmp_service_ejecutor_aralmac/ficheros/f-0001.dat");
+    remove("tmp_service_ejecutor_aralmac/ficheros/f-0002.dat");
+    remove("tmp_service_ejecutor_aralmac/ficheros/f-0003.dat");
     remove("tmp_service_ejecutor_aralmac/programas/p-0001.bin");
     remove("tmp_service_ejecutor_aralmac/programas/p-0001.meta");
     remove("tmp_service_ejecutor_aralmac/programas/p-0002.bin");
     remove("tmp_service_ejecutor_aralmac/programas/p-0002.meta");
     RMDIR("tmp_service_ejecutor_aralmac/ejecuciones");
+    RMDIR("tmp_service_ejecutor_aralmac/ficheros");
     RMDIR("tmp_service_ejecutor_aralmac/programas");
     RMDIR("tmp_service_ejecutor_aralmac");
     remove("tmp_ejecutor_programa.bat");
@@ -79,6 +86,17 @@ static void assert_stateful(ejecutor_service_t *service, const char *request,
     assert(strcmp(response, expected) == 0);
 }
 
+static void read_text_file(const char *path, char *buffer, size_t buffer_size)
+{
+    FILE *file = fopen(path, "rb");
+    size_t count;
+
+    assert(file != NULL);
+    count = fread(buffer, 1, buffer_size - 1, file);
+    buffer[count] = '\0';
+    assert(fclose(file) == 0);
+}
+
 static void wait_until_finished(ejecutor_service_t *service)
 {
     char response[4096];
@@ -104,6 +122,7 @@ int main(void)
     char response[4096];
     char id_programa[GESPROG_ID_SIZE];
     char id_programa_lento[GESPROG_ID_SIZE];
+    char file_content[128];
     ejecutor_service_t service;
 
     cleanup();
@@ -113,8 +132,8 @@ int main(void)
                     "{\"estado\":\"ok\",\"id-ejecucion\":\"e-0001\"}");
     assert_response("{\"servicio\":\"ejecutor\",\"operacion\":\"Estado\","
                     "\"id-ejecucion\":\"e-0001\"}",
-                    "{\"estado\":\"ok\",\"ejecucion\":{\"id-ejecucion\":\"e-0001\","
-                    "\"id-programa\":\"p-0001\",\"proceso-estado\":\"Ejecutando\"}}");
+                    "{\"estado\":\"ok\",\"id-ejecucion\":\"e-0001\","
+                    "\"id-programa\":\"p-0001\",\"proceso-estado\":\"Ejecutando\"}");
     assert_response("{\"servicio\":\"ejecutor\",\"operacion\":\"Ejecutar\","
                     "\"id-programa\":\"p-0002\"}",
                     "{\"estado\":\"ok\",\"id-ejecucion\":\"e-0002\"}");
@@ -122,7 +141,7 @@ int main(void)
     assert(ejecutor_handle_json("tmp_service_ejecutor_aralmac",
                                 "{\"servicio\":\"ejecutor\",\"operacion\":\"Estado\"}",
                                 response, sizeof(response)));
-    assert(strstr(response, "\"ejecuciones\"") != NULL);
+    assert(strstr(response, "\"procesos\"") != NULL);
     assert(strstr(response, "\"e-0001\"") != NULL);
     assert(strstr(response, "\"e-0002\"") != NULL);
 
@@ -150,6 +169,29 @@ int main(void)
     assert(strstr(response, "\"id-ejecucion\":\"e-0001\"") != NULL);
     assert(strstr(response, "\"id-programa\":\"p-0001\"") != NULL);
     wait_until_finished(&service);
+
+    cleanup();
+    ejecutor_service_init(&service);
+    assert(MKDIR("tmp_service_ejecutor_aralmac") == 0);
+    assert(MKDIR("tmp_service_ejecutor_aralmac/ficheros") == 0);
+    write_text_file("tmp_service_ejecutor_aralmac/ficheros/f-0001.dat", "entrada lote\n");
+#ifdef _WIN32
+    write_text_file("tmp_ejecutor_programa.bat", "@echo off\nmore\n");
+    assert(gesprog_guardar("tmp_service_ejecutor_aralmac", "tmp_ejecutor_programa.bat",
+                           NULL, 0, NULL, 0, id_programa) == GESPROG_OK);
+#else
+    write_text_file("tmp_ejecutor_lento.sh", "cat\n");
+    assert(gesprog_guardar("tmp_service_ejecutor_aralmac", "tmp_ejecutor_lento.sh",
+                           NULL, 0, NULL, 0, id_programa) == GESPROG_OK);
+#endif
+    assert_stateful(&service, "{\"servicio\":\"ejecutor\",\"operacion\":\"Ejecutar\","
+                              "\"id-programa\":\"p-0001\",\"stdin\":\"f-0001\","
+                              "\"stdout\":\"f-0002\",\"stderr\":\"f-0003\"}",
+                    "{\"estado\":\"ok\",\"id-ejecucion\":\"e-0001\"}");
+    wait_until_finished(&service);
+    read_text_file("tmp_service_ejecutor_aralmac/ficheros/f-0002.dat", file_content,
+                   sizeof(file_content));
+    assert(strstr(file_content, "entrada lote") != NULL);
 
 #ifdef _WIN32
     write_text_file("tmp_ejecutor_lento.bat", "@echo off\nping -n 6 127.0.0.1 > nul\n");

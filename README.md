@@ -165,3 +165,77 @@ printf '{"servicio":"gesprog","operacion":"Guardar","ejecutable":"README.md","ar
 printf '{"servicio":"gesprog","operacion":"Leer"}\n' > /tmp/gesprog_req
 printf '{"servicio":"gesprog","operacion":"Terminar"}\n' > /tmp/gesprog_req
 ```
+
+## Ejecucion de ejecutor
+
+`ejecutor` lanza programas registrados por `gesprog`, consulta su estado y permite
+terminar procesos o detener el servicio. Para probar `Ejecutar`, debe existir un
+programa registrado en `aralmac/programas`, por ejemplo `p-0001`.
+
+En Windows 11 con MSYS2 UCRT64:
+
+```bash
+mingw32-make clean
+mingw32-make CC=gcc
+./ejecutor.exe -e '\\.\pipe\ejecutor_req' -x aralmac
+```
+
+En otra terminal PowerShell:
+
+```powershell
+$pipe = New-Object System.IO.Pipes.NamedPipeClientStream(".", "ejecutor_req", [System.IO.Pipes.PipeDirection]::InOut)
+$pipe.Connect(5000)
+$writer = New-Object System.IO.StreamWriter($pipe)
+$reader = New-Object System.IO.StreamReader($pipe)
+$writer.AutoFlush = $true
+
+$writer.WriteLine('{"servicio":"ejecutor","operacion":"Ejecutar","id-programa":"p-0001"}')
+$reader.ReadLine()
+
+Start-Sleep -Seconds 2
+
+$writer.WriteLine('{"servicio":"ejecutor","operacion":"Estado","id-ejecucion":"e-0001"}')
+$reader.ReadLine()
+
+$writer.WriteLine('{"servicio":"ejecutor","operacion":"Estado"}')
+$reader.ReadLine()
+
+$writer.WriteLine('{"servicio":"ejecutor","operacion":"Parar"}')
+$reader.ReadLine()
+
+$pipe.Dispose()
+```
+
+En Linux:
+
+```bash
+make clean
+make CC=gcc
+rm -f /tmp/ejecutor_req /tmp/ejecutor_res
+./ejecutor -e /tmp/ejecutor_req -d /tmp/ejecutor_res -x aralmac
+```
+
+En una segunda terminal:
+
+```bash
+cat /tmp/ejecutor_res
+```
+
+En una tercera terminal:
+
+```bash
+printf '{"servicio":"ejecutor","operacion":"Ejecutar","id-programa":"p-0001"}\n' > /tmp/ejecutor_req
+sleep 2
+printf '{"servicio":"ejecutor","operacion":"Estado","id-ejecucion":"e-0001"}\n' > /tmp/ejecutor_req
+printf '{"servicio":"ejecutor","operacion":"Estado"}\n' > /tmp/ejecutor_req
+printf '{"servicio":"ejecutor","operacion":"Parar"}\n' > /tmp/ejecutor_req
+```
+
+Ejemplo de respuesta:
+
+```text
+{"estado":"ok","id-ejecucion":"e-0001"}
+{"estado":"ok","id-ejecucion":"e-0001","id-programa":"p-0001","proceso-estado":"Terminado","codigo-salida":0}
+{"estado":"ok","procesos":[{"id-ejecucion":"e-0001","id-programa":"p-0001","proceso-estado":"Terminado","codigo-salida":0}]}
+{"estado":"ok"}
+```
