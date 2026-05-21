@@ -3,6 +3,14 @@
 
 #include <stddef.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/types.h>
+#endif
+
+#define EJECUTOR_MAX_PROCESOS 64
+
 typedef enum {
     EJECUTOR_SERVICE_CORRIENDO = 0,
     EJECUTOR_SERVICE_SUSPENDIDO,
@@ -10,7 +18,19 @@ typedef enum {
 } ejecutor_service_state_t;
 
 typedef struct {
+    char id_ejecucion[7];
+#ifdef _WIN32
+    HANDLE process;
+    HANDLE thread;
+#else
+    pid_t pid;
+#endif
+    int active;
+} ejecutor_process_t;
+
+typedef struct {
     ejecutor_service_state_t state;
+    ejecutor_process_t processes[EJECUTOR_MAX_PROCESOS];
 } ejecutor_service_t;
 
 void ejecutor_service_init(ejecutor_service_t *service);
