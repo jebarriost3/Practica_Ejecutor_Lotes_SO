@@ -6,6 +6,7 @@ aralmac/
 /gesfich
 /gesprog
 /ejecutor
+/ctrllt
 test_protocol
 test_gesfich_store
 test_gesfich_service

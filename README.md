@@ -239,3 +239,75 @@ Ejemplo de respuesta:
 {"estado":"ok","procesos":[{"id-ejecucion":"e-0001","id-programa":"p-0001","proceso-estado":"Terminado","codigo-salida":0}]}
 {"estado":"ok"}
 ```
+
+## Ejecucion de ctrllt
+
+`ctrllt` recibe las peticiones del cliente y las reenvia al servicio indicado en
+el campo `servicio`. Antes de iniciarlo deben estar ejecutandose `gesfich`,
+`gesprog` y `ejecutor`.
+
+En Windows 11 con MSYS2 UCRT64, levantar los servicios internos en terminales
+separadas:
+
+```bash
+./gesfich.exe -f '\\.\pipe\gesfich_req' -x aralmac
+./gesprog.exe -p '\\.\pipe\gesprog_req' -x aralmac
+./ejecutor.exe -e '\\.\pipe\ejecutor_req' -x aralmac
+```
+
+Luego iniciar el controlador:
+
+```bash
+./ctrllt.exe -c '\\.\pipe\ctrllt_req' -f '\\.\pipe\gesfich_req' -p '\\.\pipe\gesprog_req' -e '\\.\pipe\ejecutor_req'
+```
+
+En otra terminal PowerShell:
+
+```powershell
+$pipe = New-Object System.IO.Pipes.NamedPipeClientStream(".", "ctrllt_req", [System.IO.Pipes.PipeDirection]::InOut)
+$pipe.Connect(5000)
+$writer = New-Object System.IO.StreamWriter($pipe)
+$reader = New-Object System.IO.StreamReader($pipe)
+$writer.AutoFlush = $true
+
+$writer.WriteLine('{"servicio":"gesfich","operacion":"Crear"}')
+$reader.ReadLine()
+
+$writer.WriteLine('{"servicio":"ctrllt","operacion":"Terminar"}')
+$reader.ReadLine()
+
+$pipe.Dispose()
+```
+
+En Linux, levantar los servicios internos en terminales separadas:
+
+```bash
+rm -f /tmp/gesfich_req /tmp/gesfich_res
+./gesfich -f /tmp/gesfich_req -b /tmp/gesfich_res -x aralmac
+
+rm -f /tmp/gesprog_req /tmp/gesprog_res
+./gesprog -p /tmp/gesprog_req -c /tmp/gesprog_res -x aralmac
+
+rm -f /tmp/ejecutor_req /tmp/ejecutor_res
+./ejecutor -e /tmp/ejecutor_req -d /tmp/ejecutor_res -x aralmac
+```
+
+Luego iniciar el controlador:
+
+```bash
+rm -f /tmp/ctrllt_req /tmp/ctrllt_res
+./ctrllt -c /tmp/ctrllt_req -a /tmp/ctrllt_res -f /tmp/gesfich_req -b /tmp/gesfich_res -p /tmp/gesprog_req -g /tmp/gesprog_res -e /tmp/ejecutor_req -d /tmp/ejecutor_res
+```
+
+En una terminal cliente:
+
+```bash
+cat /tmp/ctrllt_res
+```
+
+En otra terminal:
+
+```bash
+printf '{"servicio":"gesfich","operacion":"Crear"}\n' > /tmp/ctrllt_req
+printf '{"servicio":"ctrllt","operacion":"Terminar"}\n' > /tmp/ctrllt_req
+```

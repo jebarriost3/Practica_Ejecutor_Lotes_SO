@@ -7,27 +7,27 @@ ifdef MSYSTEM
 EXEEXT := .exe
 PLATFORM := win
 RM := C:/msys64/usr/bin/rm.exe
-CLEAN_CMD = $(RM) -f build_protocol.o build_gesfich_store.o build_gesfich_service.o build_gesfich_server.o build_gesfich_main.o build_gesprog_store.o build_gesprog_service.o build_gesprog_server.o build_gesprog_main.o build_ejecutor_store.o build_ejecutor_service.o build_ejecutor_server.o build_ejecutor_main.o build_ctrllt_service.o liblotes.a gesfich gesfich.exe gesprog gesprog.exe ejecutor ejecutor.exe test_protocol test_protocol.exe test_gesfich_store test_gesfich_store.exe test_gesfich_service test_gesfich_service.exe test_gesprog_store test_gesprog_store.exe test_gesprog_service test_gesprog_service.exe test_ejecutor_store test_ejecutor_store.exe test_ejecutor_service test_ejecutor_service.exe test_ctrllt_service test_ctrllt_service.exe
+CLEAN_CMD = $(RM) -f build_protocol.o build_gesfich_store.o build_gesfich_service.o build_gesfich_server.o build_gesfich_main.o build_gesprog_store.o build_gesprog_service.o build_gesprog_server.o build_gesprog_main.o build_ejecutor_store.o build_ejecutor_service.o build_ejecutor_server.o build_ejecutor_main.o build_ctrllt_service.o build_ctrllt_server.o build_ctrllt_main.o liblotes.a gesfich gesfich.exe gesprog gesprog.exe ejecutor ejecutor.exe ctrllt ctrllt.exe test_protocol test_protocol.exe test_gesfich_store test_gesfich_store.exe test_gesfich_service test_gesfich_service.exe test_gesprog_store test_gesprog_store.exe test_gesprog_service test_gesprog_service.exe test_ejecutor_store test_ejecutor_store.exe test_ejecutor_service test_ejecutor_service.exe test_ctrllt_service test_ctrllt_service.exe
 else ifeq ($(OS),Windows_NT)
 EXEEXT := .exe
 PLATFORM := win
-CLEAN_CMD = del /Q build_protocol.o build_gesfich_store.o build_gesfich_service.o build_gesfich_server.o build_gesfich_main.o build_gesprog_store.o build_gesprog_service.o build_gesprog_server.o build_gesprog_main.o build_ejecutor_store.o build_ejecutor_service.o build_ejecutor_server.o build_ejecutor_main.o build_ctrllt_service.o liblotes.a gesfich gesfich.exe gesprog gesprog.exe ejecutor ejecutor.exe test_protocol test_protocol.exe test_gesfich_store test_gesfich_store.exe test_gesfich_service test_gesfich_service.exe test_gesprog_store test_gesprog_store.exe test_gesprog_service test_gesprog_service.exe test_ejecutor_store test_ejecutor_store.exe test_ejecutor_service test_ejecutor_service.exe test_ctrllt_service test_ctrllt_service.exe 2>NUL
+CLEAN_CMD = del /Q build_protocol.o build_gesfich_store.o build_gesfich_service.o build_gesfich_server.o build_gesfich_main.o build_gesprog_store.o build_gesprog_service.o build_gesprog_server.o build_gesprog_main.o build_ejecutor_store.o build_ejecutor_service.o build_ejecutor_server.o build_ejecutor_main.o build_ctrllt_service.o build_ctrllt_server.o build_ctrllt_main.o liblotes.a gesfich gesfich.exe gesprog gesprog.exe ejecutor ejecutor.exe ctrllt ctrllt.exe test_protocol test_protocol.exe test_gesfich_store test_gesfich_store.exe test_gesfich_service test_gesfich_service.exe test_gesprog_store test_gesprog_store.exe test_gesprog_service test_gesprog_service.exe test_ejecutor_store test_ejecutor_store.exe test_ejecutor_service test_ejecutor_service.exe test_ctrllt_service test_ctrllt_service.exe 2>NUL
 else
 EXEEXT :=
 PLATFORM := linux
-CLEAN_CMD = rm -f build_protocol.o build_gesfich_store.o build_gesfich_service.o build_gesfich_server.o build_gesfich_main.o build_gesprog_store.o build_gesprog_service.o build_gesprog_server.o build_gesprog_main.o build_ejecutor_store.o build_ejecutor_service.o build_ejecutor_server.o build_ejecutor_main.o build_ctrllt_service.o liblotes.a gesfich gesfich.exe gesprog gesprog.exe ejecutor ejecutor.exe test_protocol test_protocol.exe test_gesfich_store test_gesfich_store.exe test_gesfich_service test_gesfich_service.exe test_gesprog_store test_gesprog_store.exe test_gesprog_service test_gesprog_service.exe test_ejecutor_store test_ejecutor_store.exe test_ejecutor_service test_ejecutor_service.exe test_ctrllt_service test_ctrllt_service.exe
+CLEAN_CMD = rm -f build_protocol.o build_gesfich_store.o build_gesfich_service.o build_gesfich_server.o build_gesfich_main.o build_gesprog_store.o build_gesprog_service.o build_gesprog_server.o build_gesprog_main.o build_ejecutor_store.o build_ejecutor_service.o build_ejecutor_server.o build_ejecutor_main.o build_ctrllt_service.o build_ctrllt_server.o build_ctrllt_main.o liblotes.a gesfich gesfich.exe gesprog gesprog.exe ejecutor ejecutor.exe ctrllt ctrllt.exe test_protocol test_protocol.exe test_gesfich_store test_gesfich_store.exe test_gesfich_service test_gesfich_service.exe test_gesprog_store test_gesprog_store.exe test_gesprog_service test_gesprog_service.exe test_ejecutor_store test_ejecutor_store.exe test_ejecutor_service test_ejecutor_service.exe test_ctrllt_service test_ctrllt_service.exe
 endif
 
 OBJ_PREFIX := build_$(PLATFORM)_
 LIBLOTES := liblotes_$(PLATFORM).a
 
-CLEAN_CMD := $(CLEAN_CMD) build_win_protocol.o build_win_gesfich_store.o build_win_gesfich_service.o build_win_gesfich_server.o build_win_gesfich_main.o build_win_gesprog_store.o build_win_gesprog_service.o build_win_gesprog_server.o build_win_gesprog_main.o build_win_ejecutor_store.o build_win_ejecutor_service.o build_win_ejecutor_server.o build_win_ejecutor_main.o build_win_ctrllt_service.o liblotes_win.a build_linux_protocol.o build_linux_gesfich_store.o build_linux_gesfich_service.o build_linux_gesfich_server.o build_linux_gesfich_main.o build_linux_gesprog_store.o build_linux_gesprog_service.o build_linux_gesprog_server.o build_linux_gesprog_main.o build_linux_ejecutor_store.o build_linux_ejecutor_service.o build_linux_ejecutor_server.o build_linux_ejecutor_main.o build_linux_ctrllt_service.o liblotes_linux.a
+CLEAN_CMD := $(CLEAN_CMD) build_win_protocol.o build_win_gesfich_store.o build_win_gesfich_service.o build_win_gesfich_server.o build_win_gesfich_main.o build_win_gesprog_store.o build_win_gesprog_service.o build_win_gesprog_server.o build_win_gesprog_main.o build_win_ejecutor_store.o build_win_ejecutor_service.o build_win_ejecutor_server.o build_win_ejecutor_main.o build_win_ctrllt_service.o build_win_ctrllt_server.o build_win_ctrllt_main.o liblotes_win.a build_linux_protocol.o build_linux_gesfich_store.o build_linux_gesfich_service.o build_linux_gesfich_server.o build_linux_gesfich_main.o build_linux_gesprog_store.o build_linux_gesprog_service.o build_linux_gesprog_server.o build_linux_gesprog_main.o build_linux_ejecutor_store.o build_linux_ejecutor_service.o build_linux_ejecutor_server.o build_linux_ejecutor_main.o build_linux_ctrllt_service.o build_linux_ctrllt_server.o build_linux_ctrllt_main.o liblotes_linux.a
 
 COMMON_OBJS := $(OBJ_PREFIX)protocol.o $(OBJ_PREFIX)gesfich_store.o $(OBJ_PREFIX)gesfich_service.o $(OBJ_PREFIX)gesprog_store.o $(OBJ_PREFIX)gesprog_service.o $(OBJ_PREFIX)ejecutor_store.o $(OBJ_PREFIX)ejecutor_service.o $(OBJ_PREFIX)ctrllt_service.o
 
 .PHONY: all clean test
 
-all: $(LIBLOTES) gesfich$(EXEEXT) gesprog$(EXEEXT) ejecutor$(EXEEXT)
+all: $(LIBLOTES) gesfich$(EXEEXT) gesprog$(EXEEXT) ejecutor$(EXEEXT) ctrllt$(EXEEXT)
 
 $(OBJ_PREFIX)protocol.o: src/common/protocol.c include/protocol.h
 	$(CC) $(CFLAGS) -c src/common/protocol.c -o $@
@@ -83,6 +83,15 @@ $(OBJ_PREFIX)ejecutor_main.o: src/ejecutor/main.c include/ejecutor_server.h
 ejecutor$(EXEEXT): $(OBJ_PREFIX)ejecutor_main.o $(OBJ_PREFIX)ejecutor_server.o $(LIBLOTES)
 	$(CC) $(CFLAGS) $(OBJ_PREFIX)ejecutor_main.o $(OBJ_PREFIX)ejecutor_server.o $(LIBLOTES) -o $@
 
+$(OBJ_PREFIX)ctrllt_server.o: src/ctrllt/server.c include/ctrllt_server.h include/ctrllt_service.h include/protocol.h
+	$(CC) $(CFLAGS) -c src/ctrllt/server.c -o $@
+
+$(OBJ_PREFIX)ctrllt_main.o: src/ctrllt/main.c include/ctrllt_server.h
+	$(CC) $(CFLAGS) -c src/ctrllt/main.c -o $@
+
+ctrllt$(EXEEXT): $(OBJ_PREFIX)ctrllt_main.o $(OBJ_PREFIX)ctrllt_server.o $(LIBLOTES)
+	$(CC) $(CFLAGS) $(OBJ_PREFIX)ctrllt_main.o $(OBJ_PREFIX)ctrllt_server.o $(LIBLOTES) -o $@
+
 test_protocol$(EXEEXT): tests/test_protocol.c $(LIBLOTES)
 	$(CC) $(CFLAGS) tests/test_protocol.c $(LIBLOTES) -o $@
 
@@ -107,7 +116,7 @@ test_ejecutor_service$(EXEEXT): tests/test_ejecutor_service.c $(LIBLOTES)
 test_ctrllt_service$(EXEEXT): tests/test_ctrllt_service.c $(LIBLOTES)
 	$(CC) $(CFLAGS) tests/test_ctrllt_service.c $(LIBLOTES) -o $@
 
-test: test_protocol$(EXEEXT) test_gesfich_store$(EXEEXT) test_gesfich_service$(EXEEXT) test_gesprog_store$(EXEEXT) test_gesprog_service$(EXEEXT) test_ejecutor_store$(EXEEXT) test_ejecutor_service$(EXEEXT) test_ctrllt_service$(EXEEXT) gesfich$(EXEEXT) gesprog$(EXEEXT) ejecutor$(EXEEXT)
+test: test_protocol$(EXEEXT) test_gesfich_store$(EXEEXT) test_gesfich_service$(EXEEXT) test_gesprog_store$(EXEEXT) test_gesprog_service$(EXEEXT) test_ejecutor_store$(EXEEXT) test_ejecutor_service$(EXEEXT) test_ctrllt_service$(EXEEXT) gesfich$(EXEEXT) gesprog$(EXEEXT) ejecutor$(EXEEXT) ctrllt$(EXEEXT)
 	./test_protocol$(EXEEXT)
 	./test_gesfich_store$(EXEEXT)
 	./test_gesfich_service$(EXEEXT)
