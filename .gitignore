@@ -13,4 +13,5 @@ test_gesprog_store
 test_gesprog_service
 test_ejecutor_store
 test_ejecutor_service
+test_ctrllt_service
 NUL
