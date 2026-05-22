@@ -311,3 +311,69 @@ En otra terminal:
 printf '{"servicio":"gesfich","operacion":"Crear"}\n' > /tmp/ctrllt_req
 printf '{"servicio":"ctrllt","operacion":"Terminar"}\n' > /tmp/ctrllt_req
 ```
+
+## Prueba integrada
+
+La prueba integrada valida el flujo completo `cliente -> ctrllt -> servicio` con
+los tres servicios internos activos.
+
+En Windows, despues de compilar con `mingw32-make CC=gcc`, crear un programa de
+prueba:
+
+```bash
+printf '@echo off\r\necho programa desde ctrllt\r\n' > demo_ctrllt.bat
+```
+
+Levantar `gesfich`, `gesprog`, `ejecutor` y `ctrllt` como se indica en la seccion
+anterior. Desde PowerShell enviar por la tuberia de `ctrllt` las operaciones:
+
+```powershell
+$writer.WriteLine('{"servicio":"gesfich","operacion":"Crear"}')
+$reader.ReadLine()
+
+$writer.WriteLine('{"servicio":"gesfich","operacion":"Leer"}')
+$reader.ReadLine()
+
+$writer.WriteLine('{"servicio":"gesprog","operacion":"Guardar","ejecutable":"demo_ctrllt.bat","args":[],"env":[]}')
+$resp = $reader.ReadLine(); $resp
+$idPrograma = ($resp | ConvertFrom-Json).'id-programa'
+
+$writer.WriteLine("{""servicio"":""ejecutor"",""operacion"":""Ejecutar"",""id-programa"":""$idPrograma""}")
+$resp = $reader.ReadLine(); $resp
+$idEjecucion = ($resp | ConvertFrom-Json).'id-ejecucion'
+
+Start-Sleep -Seconds 2
+
+$writer.WriteLine("{""servicio"":""ejecutor"",""operacion"":""Estado"",""id-ejecucion"":""$idEjecucion""}")
+$reader.ReadLine()
+
+$writer.WriteLine('{"servicio":"ejecutor","operacion":"Estado"}')
+$reader.ReadLine()
+
+$writer.WriteLine('{"servicio":"ctrllt","operacion":"Terminar"}')
+$reader.ReadLine()
+```
+
+En Linux, despues de compilar con `make CC=gcc`, crear un programa de prueba:
+
+```bash
+printf 'echo programa desde ctrllt linux\n' > demo_ctrllt.sh
+```
+
+Levantar los cuatro servicios y enviar al controlador:
+
+```bash
+printf '{"servicio":"gesfich","operacion":"Crear"}\n' > /tmp/ctrllt_req
+printf '{"servicio":"gesfich","operacion":"Leer"}\n' > /tmp/ctrllt_req
+printf '{"servicio":"gesprog","operacion":"Guardar","ejecutable":"demo_ctrllt.sh","args":[],"env":[]}\n' > /tmp/ctrllt_req
+printf '{"servicio":"gesprog","operacion":"Leer"}\n' > /tmp/ctrllt_req
+printf '{"servicio":"ejecutor","operacion":"Ejecutar","id-programa":"p-XXXX"}\n' > /tmp/ctrllt_req
+sleep 2
+printf '{"servicio":"ejecutor","operacion":"Estado","id-ejecucion":"e-XXXX"}\n' > /tmp/ctrllt_req
+printf '{"servicio":"ejecutor","operacion":"Estado"}\n' > /tmp/ctrllt_req
+printf '{"servicio":"ctrllt","operacion":"Terminar"}\n' > /tmp/ctrllt_req
+```
+
+Los valores `p-XXXX` y `e-XXXX` se reemplazan por los identificadores retornados
+por `Guardar` y `Ejecutar`. La prueba esperada devuelve respuestas `ok`, listas
+de ficheros/programas y procesos en estado `Terminado`.
