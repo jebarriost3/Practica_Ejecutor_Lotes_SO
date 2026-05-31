@@ -454,7 +454,7 @@ gesprog_result_t gesprog_leer(const char *aralmac, const char *id_programa,
         return GESPROG_STORAGE_ERROR;
     }
 
-    fclose(file);
+    fclose(file); 
     return GESPROG_OK;
 }
 

@@ -19,6 +19,9 @@ typedef enum {
 
 typedef struct {
     char id_ejecucion[7];
+    char stdin_id[7];
+    char stdout_id[7];
+    char stderr_id[7];
 #ifdef _WIN32
     HANDLE process;
     HANDLE thread;

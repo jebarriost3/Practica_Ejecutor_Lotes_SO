@@ -175,6 +175,8 @@ int main(void)
     assert(MKDIR("tmp_service_ejecutor_aralmac") == 0);
     assert(MKDIR("tmp_service_ejecutor_aralmac/ficheros") == 0);
     write_text_file("tmp_service_ejecutor_aralmac/ficheros/f-0001.dat", "entrada lote\n");
+    write_text_file("tmp_service_ejecutor_aralmac/ficheros/f-0002.dat", "");
+    write_text_file("tmp_service_ejecutor_aralmac/ficheros/f-0003.dat", "");
 #ifdef _WIN32
     write_text_file("tmp_ejecutor_programa.bat", "@echo off\nmore\n");
     assert(gesprog_guardar("tmp_service_ejecutor_aralmac", "tmp_ejecutor_programa.bat",

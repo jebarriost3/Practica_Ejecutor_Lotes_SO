@@ -9,16 +9,23 @@
 #include "protocol.h"
 
 #include <stdarg.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifdef _WIN32
+#include <direct.h>
 #include <windows.h>
+#define MKDIR(path) _mkdir(path)
 #else
 #include <signal.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#define MKDIR(path) mkdir(path, 0777)
+extern char **environ;
 #endif
 
 #define FIELD_SIZE 512
@@ -87,7 +94,13 @@ static int write_error(char *response, size_t size, const char *message)
 static int build_path(char *buffer, size_t size, const char *a, const char *b,
                       const char *c)
 {
-    int written = snprintf(buffer, size, "%s/%s/%s", a, b, c);
+    int written;
+
+    if (c == NULL) {
+        written = snprintf(buffer, size, "%s/%s", a, b);
+    } else {
+        written = snprintf(buffer, size, "%s/%s/%s", a, b, c);
+    }
     return written > 0 && (size_t)written < size;
 }
 
@@ -115,6 +128,113 @@ static int fichero_file(char *buffer, size_t size, const char *aralmac,
         return 0;
     }
     return build_path(buffer, size, aralmac, "ficheros", filename);
+}
+
+static int program_file(char *buffer, size_t size, const char *aralmac,
+                        const char *id_programa)
+{
+    char filename[32];
+
+    if (!protocol_valid_id(id_programa, ID_PROGRAMA)) {
+        return 0;
+    }
+    if (snprintf(filename, sizeof(filename), "%s.bin", id_programa) >=
+        (int)sizeof(filename)) {
+        return 0;
+    }
+    return build_path(buffer, size, aralmac, "programas", filename);
+}
+
+static int path_exists(const char *path)
+{
+    FILE *file = fopen(path, "rb");
+    if (file == NULL) {
+        return 0;
+    }
+    fclose(file);
+    return 1;
+}
+
+static int make_dir_if_needed(const char *path)
+{
+    if (MKDIR(path) == 0) {
+        return 1;
+    }
+    return errno == EEXIST;
+}
+
+static int lock_path(char *buffer, size_t size, const char *aralmac,
+                     const char *id_fichero)
+{
+    char dir[512];
+    char filename[32];
+
+    if (!protocol_valid_id(id_fichero, ID_FICHERO)) {
+        return 0;
+    }
+    if (!build_path(dir, sizeof(dir), aralmac, "bloqueos", NULL) ||
+        !make_dir_if_needed(dir)) {
+        return 0;
+    }
+    if (snprintf(filename, sizeof(filename), "%s.lock", id_fichero) >=
+        (int)sizeof(filename)) {
+        return 0;
+    }
+    return build_path(buffer, size, aralmac, "bloqueos", filename);
+}
+
+static int lock_file_id(const char *aralmac, const char *id_fichero)
+{
+    char path[512];
+    FILE *file;
+
+    if (id_fichero == NULL || id_fichero[0] == '\0') {
+        return 1;
+    }
+    if (!lock_path(path, sizeof(path), aralmac, id_fichero)) {
+        return 0;
+    }
+    file = fopen(path, "wb");
+    if (file == NULL) {
+        return 0;
+    }
+    fclose(file);
+    return 1;
+}
+
+static void unlock_file_id(const char *aralmac, const char *id_fichero)
+{
+    char path[512];
+
+    if (id_fichero == NULL || id_fichero[0] == '\0') {
+        return;
+    }
+    if (lock_path(path, sizeof(path), aralmac, id_fichero)) {
+        remove(path);
+    }
+}
+
+static int validate_fichero_exists(const char *aralmac, const char *id_fichero)
+{
+    char path[512];
+
+    if (id_fichero == NULL || id_fichero[0] == '\0') {
+        return 1;
+    }
+    return fichero_file(path, sizeof(path), aralmac, id_fichero) && path_exists(path);
+}
+
+static void unlock_process_files(const char *aralmac, ejecutor_process_t *process)
+{
+    if (process == NULL) {
+        return;
+    }
+    unlock_file_id(aralmac, process->stdin_id);
+    unlock_file_id(aralmac, process->stdout_id);
+    unlock_file_id(aralmac, process->stderr_id);
+    process->stdin_id[0] = '\0';
+    process->stdout_id[0] = '\0';
+    process->stderr_id[0] = '\0';
 }
 
 static const char *error_message(ejecutor_result_t result)
@@ -231,6 +351,7 @@ static void update_process_state(const char *aralmac, ejecutor_process_t *proces
     ejecutor_marcar_terminada(aralmac, process->id_ejecucion, (int)exit_code);
     CloseHandle(process->process);
     CloseHandle(process->thread);
+    unlock_process_files(aralmac, process);
     process->active = 0;
 #else
     int status;
@@ -250,6 +371,7 @@ static void update_process_state(const char *aralmac, ejecutor_process_t *proces
         code = 128 + WTERMSIG(status);
     }
     ejecutor_marcar_terminada(aralmac, process->id_ejecucion, code);
+    unlock_process_files(aralmac, process);
     process->active = 0;
 #endif
 }
@@ -271,25 +393,33 @@ static int launch_program(ejecutor_service_t *service, const char *aralmac,
     char in_path[512];
     char out_path[512];
     char err_path[512];
+    char exe_path[512];
 
     if (slot == NULL) {
         return 0;
     }
-    if (stdin_id != NULL && !fichero_file(in_path, sizeof(in_path), aralmac, stdin_id)) {
+    if (stdin_id != NULL && (!fichero_file(in_path, sizeof(in_path), aralmac, stdin_id) ||
+                             !path_exists(in_path))) {
         return 0;
     }
     if (stdout_id != NULL) {
-        if (!fichero_file(out_path, sizeof(out_path), aralmac, stdout_id)) {
+        if (!fichero_file(out_path, sizeof(out_path), aralmac, stdout_id) ||
+            !path_exists(out_path)) {
             return 0;
         }
     } else if (!execution_file(out_path, sizeof(out_path), aralmac, id_ejecucion, ".out")) {
         return 0;
     }
     if (stderr_id != NULL) {
-        if (!fichero_file(err_path, sizeof(err_path), aralmac, stderr_id)) {
+        if (!fichero_file(err_path, sizeof(err_path), aralmac, stderr_id) ||
+            !path_exists(err_path)) {
             return 0;
         }
     } else if (!execution_file(err_path, sizeof(err_path), aralmac, id_ejecucion, ".err")) {
+        return 0;
+    }
+    if (!program_file(exe_path, sizeof(exe_path), aralmac, programa->id_programa) ||
+        !path_exists(exe_path)) {
         return 0;
     }
 
@@ -330,9 +460,26 @@ static int launch_program(ejecutor_service_t *service, const char *aralmac,
             return 0;
         }
 
-        written = snprintf(command, sizeof(command), "cmd.exe /C call \"%s\"",
-                           programa->ejecutable);
+        written = snprintf(command, sizeof(command), "cmd.exe /C ");
         if (written < 0 || (size_t)written >= sizeof(command)) {
+            CloseHandle(input_file);
+            CloseHandle(out_file);
+            CloseHandle(err_file);
+            return 0;
+        }
+        for (i = 0; i < programa->env_count; i++) {
+            written += snprintf(command + written, sizeof(command) - (size_t)written,
+                                "set \"%s\" && ", programa->env[i]);
+            if (written < 0 || (size_t)written >= sizeof(command) - 1) {
+                CloseHandle(input_file);
+                CloseHandle(out_file);
+                CloseHandle(err_file);
+                return 0;
+            }
+        }
+        written += snprintf(command + written, sizeof(command) - (size_t)written,
+                            "call \"%s\"", programa->ejecutable);
+        if (written < 0 || (size_t)written >= sizeof(command) - 1) {
             CloseHandle(input_file);
             CloseHandle(out_file);
             CloseHandle(err_file);
@@ -356,8 +503,8 @@ static int launch_program(ejecutor_service_t *service, const char *aralmac,
         si.hStdOutput = out_file;
         si.hStdError = err_file;
 
-        if (!CreateProcessA(NULL, command, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, NULL,
-                            &si, &pi)) {
+        if (!CreateProcessA(NULL, command, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL,
+                            NULL, &si, &pi)) {
             CloseHandle(input_file);
             CloseHandle(out_file);
             CloseHandle(err_file);
@@ -368,6 +515,9 @@ static int launch_program(ejecutor_service_t *service, const char *aralmac,
         CloseHandle(out_file);
         CloseHandle(err_file);
         strcpy(slot->id_ejecucion, id_ejecucion);
+        strcpy(slot->stdin_id, stdin_id == NULL ? "" : stdin_id);
+        strcpy(slot->stdout_id, stdout_id == NULL ? "" : stdout_id);
+        strcpy(slot->stderr_id, stderr_id == NULL ? "" : stderr_id);
         slot->process = pi.hProcess;
         slot->thread = pi.hThread;
         slot->active = 1;
@@ -384,21 +534,38 @@ static int launch_program(ejecutor_service_t *service, const char *aralmac,
             FILE *out = freopen(out_path, "wb", stdout);
             FILE *err = freopen(err_path, "wb", stderr);
             char **argv = calloc(programa->args_count + 3, sizeof(char *));
+            char **sh_argv = calloc(programa->args_count + 3, sizeof(char *));
+            char **envp = programa->env_count == 0 ? environ :
+                          calloc(programa->env_count + 1, sizeof(char *));
             size_t i;
 
-            if (in == NULL || out == NULL || err == NULL || argv == NULL) {
+            if (in == NULL || out == NULL || err == NULL || argv == NULL ||
+                sh_argv == NULL || envp == NULL) {
                 _exit(127);
             }
-            argv[0] = "sh";
-            argv[1] = programa->ejecutable;
+            argv[0] = exe_path;
+            sh_argv[0] = "sh";
+            sh_argv[1] = exe_path;
             for (i = 0; i < programa->args_count; i++) {
-                argv[i + 2] = programa->args[i];
+                argv[i + 1] = programa->args[i];
+                sh_argv[i + 2] = programa->args[i];
             }
-            argv[programa->args_count + 2] = NULL;
-            execv("/bin/sh", argv);
+            argv[programa->args_count + 1] = NULL;
+            sh_argv[programa->args_count + 2] = NULL;
+            if (programa->env_count > 0) {
+                for (i = 0; i < programa->env_count; i++) {
+                    envp[i] = programa->env[i];
+                }
+                envp[programa->env_count] = NULL;
+            }
+            execve(exe_path, argv, envp);
+            execve("/bin/sh", sh_argv, envp);
             _exit(127);
         }
         strcpy(slot->id_ejecucion, id_ejecucion);
+        strcpy(slot->stdin_id, stdin_id == NULL ? "" : stdin_id);
+        strcpy(slot->stdout_id, stdout_id == NULL ? "" : stdout_id);
+        strcpy(slot->stderr_id, stderr_id == NULL ? "" : stderr_id);
         slot->pid = pid;
         slot->active = 1;
         return 1;
@@ -431,6 +598,10 @@ static int handle_ejecutar_real(ejecutor_service_t *service, const char *aralmac
             gesprog_liberar_programa(&programa);
             return write_error(response, size, "identificador invalido");
         }
+        if (!validate_fichero_exists(aralmac, stdin_id)) {
+            gesprog_liberar_programa(&programa);
+            return write_error(response, size, "fichero no encontrado");
+        }
         stdin_value = stdin_id;
     }
     if (json_get_string(request, "stdout", stdout_id, sizeof(stdout_id))) {
@@ -438,12 +609,20 @@ static int handle_ejecutar_real(ejecutor_service_t *service, const char *aralmac
             gesprog_liberar_programa(&programa);
             return write_error(response, size, "identificador invalido");
         }
+        if (!validate_fichero_exists(aralmac, stdout_id)) {
+            gesprog_liberar_programa(&programa);
+            return write_error(response, size, "fichero no encontrado");
+        }
         stdout_value = stdout_id;
     }
     if (json_get_string(request, "stderr", stderr_id, sizeof(stderr_id))) {
         if (!protocol_valid_id(stderr_id, ID_FICHERO)) {
             gesprog_liberar_programa(&programa);
             return write_error(response, size, "identificador invalido");
+        }
+        if (!validate_fichero_exists(aralmac, stderr_id)) {
+            gesprog_liberar_programa(&programa);
+            return write_error(response, size, "fichero no encontrado");
         }
         stderr_value = stderr_id;
     }
@@ -458,6 +637,11 @@ static int handle_ejecutar_real(ejecutor_service_t *service, const char *aralmac
         ejecutor_marcar_terminada(aralmac, id_ejecucion, 127);
         gesprog_liberar_programa(&programa);
         return write_error(response, size, "no se pudo lanzar el programa");
+    }
+    if (!lock_file_id(aralmac, stdin_value) || !lock_file_id(aralmac, stdout_value) ||
+        !lock_file_id(aralmac, stderr_value)) {
+        gesprog_liberar_programa(&programa);
+        return write_error(response, size, "no se pudo bloquear fichero");
     }
 
     gesprog_liberar_programa(&programa);
@@ -486,9 +670,11 @@ static int handle_matar(ejecutor_service_t *service, const char *aralmac,
     CloseHandle(process->thread);
 #else
     kill(process->pid, SIGTERM);
+    kill(process->pid, SIGCONT);
     waitpid(process->pid, NULL, 0);
 #endif
     ejecutor_marcar_terminada(aralmac, id, 1);
+    unlock_process_files(aralmac, process);
     process->active = 0;
     return write_json(response, size, "{\"estado\":\"ok\"}");
 }
@@ -604,31 +790,68 @@ int ejecutor_service_handle_json(ejecutor_service_t *service, const char *aralma
     update_all_processes(service, aralmac);
 
     if (strcmp(operacion, "Suspender") == 0) {
+        size_t i;
+        for (i = 0; i < EJECUTOR_MAX_PROCESOS; i++) {
+            if (service->processes[i].active) {
+#ifdef _WIN32
+                SuspendThread(service->processes[i].thread);
+#else
+                kill(service->processes[i].pid, SIGSTOP);
+#endif
+                ejecutor_marcar_suspendida(aralmac, service->processes[i].id_ejecucion);
+            }
+        }
         service->state = EJECUTOR_SERVICE_SUSPENDIDO;
         return write_json(response, response_size, "{\"estado\":\"ok\"}");
     }
     if (strcmp(operacion, "Reasumir") == 0) {
+        size_t i;
+        for (i = 0; i < EJECUTOR_MAX_PROCESOS; i++) {
+            if (service->processes[i].active) {
+#ifdef _WIN32
+                ResumeThread(service->processes[i].thread);
+#else
+                kill(service->processes[i].pid, SIGCONT);
+#endif
+                ejecutor_marcar_ejecutando(aralmac, service->processes[i].id_ejecucion);
+            }
+        }
         service->state = EJECUTOR_SERVICE_CORRIENDO;
         return write_json(response, response_size, "{\"estado\":\"ok\"}");
     }
     if (strcmp(operacion, "Parar") == 0) {
         size_t i;
+        int active;
+        service->state = EJECUTOR_SERVICE_TERMINADO;
         for (i = 0; i < EJECUTOR_MAX_PROCESOS; i++) {
             if (service->processes[i].active) {
 #ifdef _WIN32
-                TerminateProcess(service->processes[i].process, 1);
-                WaitForSingleObject(service->processes[i].process, INFINITE);
-                CloseHandle(service->processes[i].process);
-                CloseHandle(service->processes[i].thread);
+                ResumeThread(service->processes[i].thread);
 #else
-                kill(service->processes[i].pid, SIGTERM);
-                waitpid(service->processes[i].pid, NULL, 0);
+                kill(service->processes[i].pid, SIGCONT);
 #endif
-                ejecutor_marcar_terminada(aralmac, service->processes[i].id_ejecucion, 1);
-                service->processes[i].active = 0;
+                ejecutor_marcar_ejecutando(aralmac, service->processes[i].id_ejecucion);
             }
         }
-        service->state = EJECUTOR_SERVICE_TERMINADO;
+        do {
+            active = 0;
+            for (i = 0; i < EJECUTOR_MAX_PROCESOS; i++) {
+                if (service->processes[i].active) {
+                    active = 1;
+#ifdef _WIN32
+                    WaitForSingleObject(service->processes[i].process, 100);
+#else
+                    {
+                        struct timespec delay;
+                        delay.tv_sec = 0;
+                        delay.tv_nsec = 100000000L;
+                        nanosleep(&delay, NULL);
+                    }
+#endif
+                    update_process_state(aralmac, &service->processes[i]);
+                }
+            }
+        } while (active);
         return write_json(response, response_size, "{\"estado\":\"ok\"}");
     }
     if (service->state == EJECUTOR_SERVICE_TERMINADO) {

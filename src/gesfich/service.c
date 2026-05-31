@@ -171,6 +171,37 @@ static int write_ok(char *response, size_t response_size)
     return write_response(response, response_size, "{\"estado\":\"ok\"}");
 }
 
+static int build_path(char *buffer, size_t size, const char *a, const char *b,
+                      const char *c)
+{
+    int written = snprintf(buffer, size, "%s/%s/%s", a, b, c);
+    return written > 0 && (size_t)written < size;
+}
+
+static int fichero_locked(const char *aralmac, const char *id_fichero)
+{
+    char filename[32];
+    char path[512];
+    FILE *file;
+
+    if (!protocol_valid_id(id_fichero, ID_FICHERO)) {
+        return 0;
+    }
+    if (snprintf(filename, sizeof(filename), "%s.lock", id_fichero) >=
+        (int)sizeof(filename)) {
+        return 0;
+    }
+    if (!build_path(path, sizeof(path), aralmac, "bloqueos", filename)) {
+        return 0;
+    }
+    file = fopen(path, "rb");
+    if (file == NULL) {
+        return 0;
+    }
+    fclose(file);
+    return 1;
+}
+
 static const char *store_error_message(gesfich_result_t result)
 {
     switch (result) {
@@ -267,6 +298,9 @@ static int handle_actualizar(const char *aralmac, const char *request, char *res
         !json_get_string(request, "ruta", ruta, sizeof(ruta))) {
         return write_error(response, response_size, "faltan campos: id-fichero, ruta");
     }
+    if (fichero_locked(aralmac, id)) {
+        return write_error(response, response_size, "fichero bloqueado");
+    }
 
     result = gesfich_actualizar(aralmac, id, ruta);
     if (result != GESFICH_OK) {
@@ -284,6 +318,9 @@ static int handle_borrar(const char *aralmac, const char *request, char *respons
 
     if (!json_get_string(request, "id-fichero", id, sizeof(id))) {
         return write_error(response, response_size, "fichero no encontrado");
+    }
+    if (fichero_locked(aralmac, id)) {
+        return write_error(response, response_size, "fichero bloqueado");
     }
 
     result = gesfich_borrar(aralmac, id);
